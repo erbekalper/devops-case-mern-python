@@ -1,0 +1,16 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: python-etl-cronjob
+  namespace: devops-case
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: python-etl
+              image: devops-python-etl:latest
+              imagePullPolicy: Never
+          restartPolicy: OnFailure

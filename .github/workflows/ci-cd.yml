@@ -1,0 +1,68 @@
+name: DevOps Case CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install backend dependencies
+        working-directory: ./mern-project/server
+        run: npm install
+
+      - name: Build backend Docker image
+        run: docker build -t devops-backend:latest ./mern-project/server
+
+      - name: Install frontend dependencies
+        working-directory: ./mern-project/client
+        run: npm install
+
+      - name: Build frontend application
+        working-directory: ./mern-project/client
+        run: npm run build
+
+      - name: Build frontend Docker image
+        run: docker build -t devops-frontend:latest ./mern-project/client
+
+      - name: Build Python Docker image
+        run: docker build -t devops-python-etl:latest ./python-project
+
+      - name: Save Docker images
+        run: docker save devops-backend:latest devops-frontend:latest devops-python-etl:latest -o devops-images.tar
+
+      - name: Copy Docker images and Kubernetes files to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "devops-images.tar,k8s"
+          target: "/home/ubuntu"
+
+      - name: Deploy to k3s on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            sudo k3s ctr -n k8s.io images import /home/ubuntu/devops-images.tar
+            sudo kubectl apply -f /home/ubuntu/k8s/namespace.yaml
+            sudo kubectl apply -f /home/ubuntu/k8s/mongodb.yaml
+            sudo kubectl apply -f /home/ubuntu/k8s/backend.yaml
+            sudo kubectl apply -f /home/ubuntu/k8s/frontend.yaml
+            sudo kubectl apply -f /home/ubuntu/k8s/python-cronjob.yaml
+            sudo kubectl get pods -n devops-case
+            sudo kubectl get svc -n devops-case

@@ -1,0 +1,38 @@
+services:
+  mongodb:
+    image: mongo:6
+    container_name: devops-compose-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  backend:
+    build:
+      context: ./mern-project/server
+    container_name: devops-compose-backend
+    ports:
+      - "5050:5050"
+    environment:
+      ATLAS_URI: mongodb://mongodb:27017
+    depends_on:
+      - mongodb
+
+  frontend:
+    build:
+      context: ./mern-project/client
+    container_name: devops-compose-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  python-etl:
+    build:
+      context: ./python-project
+    container_name: devops-compose-python-etl
+    profiles:
+      - manual
+
+volumes:
+  mongo_data:

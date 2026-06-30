@@ -41,6 +41,12 @@ jobs:
 
       - name: Save Docker images
         run: docker save devops-backend:latest devops-frontend:latest devops-python-etl:latest -o devops-images.tar
+      - name: Fix package permissions
+        run: |
+          chmod 644 devops-images.tar
+          chmod -R 755 k8s
+          ls -la devops-images.tar
+          ls -la k8s
 
       - name: Copy Docker images and Kubernetes files to EC2
         uses: appleboy/scp-action@v0.1.7
@@ -48,8 +54,9 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "devops-images.tar,k8s"
-          target: "/home/ubuntu"
+          source: "devops-images.tar,k8s/*"
+          target: "/home/ubuntu/devops-case-deploy"
+          overwrite: true
 
       - name: Deploy to k3s on EC2
         uses: appleboy/ssh-action@v1.0.3
@@ -58,11 +65,11 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            sudo k3s ctr -n k8s.io images import /home/ubuntu/devops-images.tar
-            sudo kubectl apply -f /home/ubuntu/k8s/namespace.yaml
-            sudo kubectl apply -f /home/ubuntu/k8s/mongodb.yaml
-            sudo kubectl apply -f /home/ubuntu/k8s/backend.yaml
-            sudo kubectl apply -f /home/ubuntu/k8s/frontend.yaml
-            sudo kubectl apply -f /home/ubuntu/k8s/python-cronjob.yaml
+            sudo k3s ctr -n k8s.io images import /home/ubuntu/devops-case-deploy/devops-images.tar
+            sudo kubectl apply -f /home/ubuntu/devops-case-deploy/k8s/namespace.yaml
+            sudo kubectl apply -f /home/ubuntu/devops-case-deploy/k8s/mongodb.yaml
+            sudo kubectl apply -f /home/ubuntu/devops-case-deploy/k8s/backend.yaml
+            sudo kubectl apply -f /home/ubuntu/devops-case-deploy/k8s/frontend.yaml
+            sudo kubectl apply -f /home/ubuntu/devops-case-deploy/k8s/python-cronjob.yaml
             sudo kubectl get pods -n devops-case
             sudo kubectl get svc -n devops-case
